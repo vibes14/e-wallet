@@ -1,0 +1,55 @@
+<?php
+
+namespace Payum\Paypal\ExpressCheckout\Nvp\Action\Api;
+
+use ArrayAccess;
+use Payum\Core\Action\ActionInterface;
+use Payum\Core\ApiAwareInterface;
+use Payum\Core\ApiAwareTrait;
+use Payum\Core\Bridge\Spl\ArrayObject;
+use Payum\Core\Exception\LogicException;
+use Payum\Core\Exception\RequestNotSupportedException;
+use Payum\Core\Reply\HttpRedirect;
+use Payum\Paypal\ExpressCheckout\Nvp\Api;
+use Payum\Paypal\ExpressCheckout\Nvp\Request\Api\AuthorizeToken;
+
+class AuthorizeTokenAction implements ActionInterface, ApiAwareInterface
+{
+    use ApiAwareTrait;
+
+    public function __construct()
+    {
+        $this->apiClass = Api::class;
+    }
+
+    /**
+     * @throws LogicException if the token not set in the instruction.
+     * @throws HttpRedirect if authorization required.
+     */
+    public function execute($request): void
+    {
+        /** @var AuthorizeToken $request */
+        RequestNotSupportedException::assertSupports($this, $request);
+
+        $model = ArrayObject::ensureArrayObject($request->getModel());
+        if (! $model['TOKEN']) {
+            throw new LogicException('The TOKEN must be set by SetExpressCheckout request but it was not executed or failed. Review payment details model for more information');
+        }
+
+        if (! $model['PAYERID'] || $request->isForced()) {
+            throw new HttpRedirect(
+                $this->api->getAuthorizeTokenUrl($model['TOKEN'], [
+                    'useraction' => $model['AUTHORIZE_TOKEN_USERACTION'],
+                    'cmd' => $model['AUTHORIZE_TOKEN_CMD'],
+                ])
+            );
+        }
+    }
+
+    public function supports($request)
+    {
+        return $request instanceof AuthorizeToken &&
+            $request->getModel() instanceof ArrayAccess
+        ;
+    }
+}
